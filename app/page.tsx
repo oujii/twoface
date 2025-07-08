@@ -8,8 +8,14 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const CelebrityMergeQuiz = () => {
-  const [currentImage, setCurrentImage] = useState(null);
-  const [celebrities, setCelebrities] = useState<any[]>([]);
+const [currentImage, setCurrentImage] = useState(null);
+  type Celebrity = {
+  id: string;
+  name: string;
+  // add any additional fields as needed
+};
+
+  const [celebrities, setCelebrities] = useState<Celebrity[]>([]);
   const [selectedCelebs, setSelectedCelebs] = useState([]);
   const [correctGuesses, setCorrectGuesses] = useState([]); // Track correct guesses
   const [attempts, setAttempts] = useState(0);
