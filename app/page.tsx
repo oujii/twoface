@@ -3,25 +3,24 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
-const supabaseUrl = 'https://lukxhexpysqfdpbgnmyq.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx1a3hoZXhweXNxZmRwYmdubXlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5OTQ3NjIsImV4cCI6MjA2NzU3MDc2Mn0.dzbOSIZtwOVdOrZzg6Nbk_PdccSHg0xyrDlWjZt6u8w';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const CelebrityMergeQuiz = () => {
-const [currentImage, setCurrentImage] = useState(null);
-  type Celebrity = {
-  id: string;
-  name: string;
-  // add any additional fields as needed
-};
-
-  const [celebrities, setCelebrities] = useState<Celebrity[]>([]);
-  const [selectedCelebs, setSelectedCelebs] = useState([]);
-  const [correctGuesses, setCorrectGuesses] = useState([]); // Track correct guesses
+  const [currentImage, setCurrentImage] = useState<any>(null);
+  const [displayedCelebs, setDisplayedCelebs] = useState<any[]>([]); // 16 celebrities to display
+  const [selectedCelebs, setSelectedCelebs] = useState<number[]>([]);
+  const [correctGuesses, setCorrectGuesses] = useState<number[]>([]);
   const [attempts, setAttempts] = useState(0);
-  const [gameState, setGameState] = useState('playing'); // playing, won, lost
+  const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing'); // playing, won, lost
   const [score, setScore] = useState(0);
-  const [todaysImages, setTodaysImages] = useState([]);
+  const [todaysImages, setTodaysImages] = useState<any[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState('');
@@ -29,6 +28,12 @@ const [currentImage, setCurrentImage] = useState(null);
   useEffect(() => {
     loadTodaysQuiz();
   }, []);
+
+  useEffect(() => {
+    if (currentImage) {
+      loadCelebrityOptions();
+    }
+  }, [currentImage]);
 
   const loadTodaysQuiz = async () => {
     try {
@@ -44,12 +49,12 @@ const [currentImage, setCurrentImage] = useState(null);
           *,
           quiz_images (
             *,
-            merged_images (
+            image:merged_images (
               id,
               image_url,
               celebrity1_id,
               celebrity2_id,
-              difficulty
+              merge_type
             )
           )
         `)
@@ -57,19 +62,9 @@ const [currentImage, setCurrentImage] = useState(null);
         .single();
 
       if (quizError) throw quizError;
-
-      // Fetch all celebrities for options
-      const { data: celebData, error: celebError } = await supabase
-        .from('celebrities')
-        .select('*')
-        .eq('is_active', true);
-
-      if (celebError) throw celebError;
-
-      setCelebrities(celebData || []);
       
       if (quizData && quizData.quiz_images) {
-        const images = quizData.quiz_images.map(qi => qi.merged_images);
+        const images = quizData.quiz_images.map((qi: any) => qi.image);
         setTodaysImages(images);
         if (images.length > 0) {
           setCurrentImage(images[0]);
@@ -83,7 +78,53 @@ const [currentImage, setCurrentImage] = useState(null);
     }
   };
 
-  const handleCelebSelect = (celebId) => {
+  const loadCelebrityOptions = async () => {
+    if (!currentImage) return;
+
+    try {
+      // Get the correct celebrities' genders
+      const { data: correctCelebs } = await supabase
+        .from('celebrities')
+        .select('id, name, gender')
+        .in('id', [currentImage.celebrity1_id, currentImage.celebrity2_id]);
+
+      // Determine which genders to fetch based on merge_type
+      let genderFilter = [];
+      if (currentImage.merge_type === 'MAN,MAN') {
+        genderFilter = ['male'];
+      } else if (currentImage.merge_type === 'WOMAN,WOMAN') {
+        genderFilter = ['female'];
+      } else {
+        genderFilter = ['male', 'female'];
+      }
+
+      // Fetch celebrities of appropriate gender(s)
+      const { data: availableCelebs } = await supabase
+        .from('celebrities')
+        .select('*')
+        .in('gender', genderFilter)
+        .eq('is_active', true);
+
+      if (availableCelebs && correctCelebs) {
+        // Ensure correct answers are included
+        const correctIds = [currentImage.celebrity1_id, currentImage.celebrity2_id];
+        const otherCelebs = availableCelebs.filter(c => !correctIds.includes(c.id));
+
+        // Randomly select 14 other celebrities
+        const shuffled = otherCelebs.sort(() => Math.random() - 0.5);
+        const selected = shuffled.slice(0, 14);
+
+        // Combine with correct answers and shuffle
+        const allOptions = [...correctCelebs, ...selected].sort(() => Math.random() - 0.5);
+
+        setDisplayedCelebs(allOptions.slice(0, 16)); // Ensure exactly 16
+      }
+    } catch (error) {
+      console.error('Error loading celebrity options:', error);
+    }
+  };
+
+  const handleCelebSelect = (celebId: number) => {
     if (gameState !== 'playing' || correctGuesses.includes(celebId)) return;
     
     if (selectedCelebs.includes(celebId)) {
@@ -156,8 +197,8 @@ const [currentImage, setCurrentImage] = useState(null);
     }
   };
 
-  const getCelebName = (celebId) => {
-    const celeb = celebrities.find(c => c.id === celebId);
+  const getCelebName = (celebId: number) => {
+    const celeb = displayedCelebs.find(c => c.id === celebId);
     return celeb ? celeb.name : '';
   };
 
@@ -204,14 +245,6 @@ const [currentImage, setCurrentImage] = useState(null);
                 alt="Merged Celebrity"
                 className="w-full aspect-square object-cover rounded-xl shadow-lg"
               />
-              {/* Difficulty Badge */}
-              <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold ${
-                currentImage.difficulty === 'easy' ? 'bg-green-500' :
-                currentImage.difficulty === 'medium' ? 'bg-yellow-500' :
-                'bg-red-500'
-              } text-white`}>
-                {currentImage.difficulty}
-              </div>
             </div>
           </div>
 
@@ -227,9 +260,9 @@ const [currentImage, setCurrentImage] = useState(null);
             ))}
           </div>
 
-          {/* Celebrity Options Grid */}
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            {celebrities.map((celeb) => {
+          {/* Celebrity Options Grid - 4x4 */}
+          <div className="grid grid-cols-4 gap-1.5 mb-4">
+            {displayedCelebs.map((celeb) => {
               const isSelected = selectedCelebs.includes(celeb.id);
               const isCorrectGuess = correctGuesses.includes(celeb.id);
               const isCorrect = gameState !== 'playing' && 
@@ -241,13 +274,14 @@ const [currentImage, setCurrentImage] = useState(null);
                   onClick={() => handleCelebSelect(celeb.id)}
                   disabled={gameState !== 'playing' || isCorrectGuess}
                   className={`
-                    px-2 py-2 rounded-lg text-sm font-medium transition-all transform hover:scale-105
+                    px-1 py-2 rounded text-xs font-medium transition-all transform hover:scale-105
                     ${isCorrectGuess ? 'bg-green-500 text-white scale-105 shadow-lg' :
                       isSelected ? 'bg-purple-600 text-white scale-105 shadow-lg' : 
                       isCorrect ? 'bg-green-500 text-white' :
                       'bg-white/20 text-white hover:bg-white/30'}
                     ${(gameState !== 'playing' || isCorrectGuess) ? 'cursor-not-allowed' : 'cursor-pointer'}
                   `}
+                  style={{ fontSize: '10px' }}
                 >
                   {celeb.name}
                 </button>

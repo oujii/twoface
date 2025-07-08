@@ -1,0 +1,28 @@
+[build]
+  # Build command
+  command = "npm run build"
+
+  # Directory to publish (Next.js static export output)
+  publish = "out"
+
+[build.environment]
+  # Node.js version
+  NODE_VERSION = "18"
+  
+  # Enable Next.js standalone output for better performance
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Handle client-side routing for SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
