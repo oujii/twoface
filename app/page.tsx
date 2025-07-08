@@ -11,6 +11,7 @@ const CelebrityMergeQuiz = () => {
   const [currentImage, setCurrentImage] = useState(null);
   const [celebrities, setCelebrities] = useState([]);
   const [selectedCelebs, setSelectedCelebs] = useState([]);
+  const [correctGuesses, setCorrectGuesses] = useState([]); // Track correct guesses
   const [attempts, setAttempts] = useState(0);
   const [gameState, setGameState] = useState('playing'); // playing, won, lost
   const [score, setScore] = useState(0);
@@ -77,25 +78,42 @@ const CelebrityMergeQuiz = () => {
   };
 
   const handleCelebSelect = (celebId) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || correctGuesses.includes(celebId)) return;
     
     if (selectedCelebs.includes(celebId)) {
       setSelectedCelebs(selectedCelebs.filter(id => id !== celebId));
-    } else if (selectedCelebs.length < 2) {
+    } else if (selectedCelebs.length + correctGuesses.length < 2) {
       setSelectedCelebs([...selectedCelebs, celebId]);
     }
   };
 
   const handleSubmit = () => {
-    if (selectedCelebs.length !== 2 || gameState !== 'playing') return;
+    if (selectedCelebs.length === 0 || gameState !== 'playing') return;
 
     const correct1 = currentImage.celebrity1_id;
     const correct2 = currentImage.celebrity2_id;
     
-    const isCorrect = 
-      (selectedCelebs.includes(correct1) && selectedCelebs.includes(correct2));
+    // Check which selected celebrities are correct
+    const newCorrectGuesses = [...correctGuesses];
+    const remainingSelected = [];
+    
+    selectedCelebs.forEach(celebId => {
+      if (celebId === correct1 || celebId === correct2) {
+        if (!newCorrectGuesses.includes(celebId)) {
+          newCorrectGuesses.push(celebId);
+        }
+      } else {
+        remainingSelected.push(celebId);
+      }
+    });
 
-    if (isCorrect) {
+    setCorrectGuesses(newCorrectGuesses);
+    
+    // Check if both celebrities are now guessed correctly
+    const hasGuessedBoth = 
+      (newCorrectGuesses.includes(correct1) && newCorrectGuesses.includes(correct2));
+
+    if (hasGuessedBoth) {
       setGameState('won');
       setScore(score + (3 - attempts) * 10);
       setFeedback('Correct! Well done!');
@@ -107,7 +125,11 @@ const CelebrityMergeQuiz = () => {
         setGameState('lost');
         setFeedback('Game Over! The correct answer was shown.');
       } else {
-        setFeedback(`Wrong! ${3 - newAttempts} attempts remaining.`);
+        if (newCorrectGuesses.length > correctGuesses.length) {
+          setFeedback(`Good! You got one correct. ${3 - newAttempts} attempts remaining.`);
+        } else {
+          setFeedback(`Wrong! ${3 - newAttempts} attempts remaining.`);
+        }
         setSelectedCelebs([]);
       }
     }
@@ -119,6 +141,7 @@ const CelebrityMergeQuiz = () => {
       setCurrentImageIndex(nextIndex);
       setCurrentImage(todaysImages[nextIndex]);
       setSelectedCelebs([]);
+      setCorrectGuesses([]);
       setAttempts(0);
       setGameState('playing');
       setFeedback('');
@@ -134,51 +157,49 @@ const CelebrityMergeQuiz = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-white text-2xl">Loading today's quiz...</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+        <div className="text-white text-xl">Loading today's quiz...</div>
       </div>
     );
   }
 
   if (!currentImage) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="text-white text-2xl">No quiz available for today!</div>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
+        <div className="text-white text-xl">No quiz available for today!</div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8 pt-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Celebrity Merge Quiz</h1>
-          <p className="text-purple-200">Can you guess which two celebrities are merged?</p>
-          <div className="mt-4 flex justify-center gap-8">
-            <div className="text-white">
-              <span className="text-sm text-purple-200">Score</span>
-              <p className="text-2xl font-bold">{score}</p>
+      <div className="max-w-sm mx-auto">
+        {/* Score Header */}
+        <div className="text-center mb-4 pt-4">
+          <div className="flex justify-between items-center text-white">
+            <div>
+              <span className="text-xs text-purple-200">Score</span>
+              <p className="text-xl font-bold">{score}</p>
             </div>
-            <div className="text-white">
-              <span className="text-sm text-purple-200">Image</span>
-              <p className="text-2xl font-bold">{currentImageIndex + 1}/{todaysImages.length}</p>
+            <div>
+              <span className="text-xs text-purple-200">Image</span>
+              <p className="text-xl font-bold">{currentImageIndex + 1}/{todaysImages.length}</p>
             </div>
           </div>
         </div>
 
         {/* Main Game Area */}
-        <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 shadow-2xl">
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 shadow-2xl">
           {/* Merged Image */}
-          <div className="mb-8 flex justify-center">
+          <div className="mb-4">
             <div className="relative">
               <img 
                 src={currentImage.image_url} 
                 alt="Merged Celebrity"
-                className="w-80 h-80 object-cover rounded-2xl shadow-lg"
+                className="w-full aspect-square object-cover rounded-xl shadow-lg"
               />
               {/* Difficulty Badge */}
-              <div className={`absolute top-4 right-4 px-3 py-1 rounded-full text-sm font-semibold ${
+              <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold ${
                 currentImage.difficulty === 'easy' ? 'bg-green-500' :
                 currentImage.difficulty === 'medium' ? 'bg-yellow-500' :
                 'bg-red-500'
@@ -189,11 +210,11 @@ const CelebrityMergeQuiz = () => {
           </div>
 
           {/* Attempts Indicator */}
-          <div className="flex justify-center gap-2 mb-6">
+          <div className="flex justify-center gap-2 mb-4">
             {[1, 2, 3].map((num) => (
               <div 
                 key={num}
-                className={`w-3 h-3 rounded-full ${
+                className={`w-2.5 h-2.5 rounded-full ${
                   num <= attempts ? 'bg-red-500' : 'bg-green-500'
                 }`}
               />
@@ -201,9 +222,10 @@ const CelebrityMergeQuiz = () => {
           </div>
 
           {/* Celebrity Options Grid */}
-          <div className="grid grid-cols-4 gap-3 mb-8">
+          <div className="grid grid-cols-3 gap-2 mb-4">
             {celebrities.map((celeb) => {
               const isSelected = selectedCelebs.includes(celeb.id);
+              const isCorrectGuess = correctGuesses.includes(celeb.id);
               const isCorrect = gameState !== 'playing' && 
                 (celeb.id === currentImage.celebrity1_id || celeb.id === currentImage.celebrity2_id);
               
@@ -211,13 +233,14 @@ const CelebrityMergeQuiz = () => {
                 <button
                   key={celeb.id}
                   onClick={() => handleCelebSelect(celeb.id)}
-                  disabled={gameState !== 'playing'}
+                  disabled={gameState !== 'playing' || isCorrectGuess}
                   className={`
-                    px-4 py-3 rounded-lg font-medium transition-all transform hover:scale-105
-                    ${isSelected ? 'bg-purple-600 text-white scale-105 shadow-lg' : 
+                    px-2 py-2 rounded-lg text-sm font-medium transition-all transform hover:scale-105
+                    ${isCorrectGuess ? 'bg-green-500 text-white scale-105 shadow-lg' :
+                      isSelected ? 'bg-purple-600 text-white scale-105 shadow-lg' : 
                       isCorrect ? 'bg-green-500 text-white' :
                       'bg-white/20 text-white hover:bg-white/30'}
-                    ${gameState !== 'playing' ? 'cursor-not-allowed' : 'cursor-pointer'}
+                    ${(gameState !== 'playing' || isCorrectGuess) ? 'cursor-not-allowed' : 'cursor-pointer'}
                   `}
                 >
                   {celeb.name}
@@ -228,7 +251,7 @@ const CelebrityMergeQuiz = () => {
 
           {/* Feedback Message */}
           {feedback && (
-            <div className={`text-center mb-4 text-lg font-semibold ${
+            <div className={`text-center mb-3 text-sm font-semibold ${
               gameState === 'won' ? 'text-green-400' : 
               gameState === 'lost' ? 'text-red-400' : 
               'text-yellow-400'
@@ -238,14 +261,14 @@ const CelebrityMergeQuiz = () => {
           )}
 
           {/* Action Buttons */}
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-3">
             {gameState === 'playing' ? (
               <button
                 onClick={handleSubmit}
-                disabled={selectedCelebs.length !== 2}
+                disabled={selectedCelebs.length === 0}
                 className={`
-                  px-8 py-3 rounded-full font-semibold transition-all
-                  ${selectedCelebs.length === 2 
+                  px-6 py-2.5 rounded-full text-sm font-semibold transition-all
+                  ${selectedCelebs.length > 0
                     ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transform hover:scale-105 shadow-lg' 
                     : 'bg-gray-500 text-gray-300 cursor-not-allowed'}
                 `}
@@ -257,7 +280,7 @@ const CelebrityMergeQuiz = () => {
                 {currentImageIndex < todaysImages.length - 1 && (
                   <button
                     onClick={nextImage}
-                    className="px-8 py-3 rounded-full font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transform hover:scale-105 shadow-lg transition-all"
+                    className="px-6 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600 transform hover:scale-105 shadow-lg transition-all"
                   >
                     Next Image
                   </button>
@@ -268,9 +291,9 @@ const CelebrityMergeQuiz = () => {
 
           {/* Show correct answer when game is over */}
           {gameState === 'lost' && (
-            <div className="mt-6 text-center text-white">
-              <p className="text-lg">The correct answer was:</p>
-              <p className="text-xl font-bold text-green-400">
+            <div className="mt-4 text-center text-white">
+              <p className="text-sm">The correct answer was:</p>
+              <p className="text-base font-bold text-green-400">
                 {getCelebName(currentImage.celebrity1_id)} & {getCelebName(currentImage.celebrity2_id)}
               </p>
             </div>
@@ -282,3 +305,4 @@ const CelebrityMergeQuiz = () => {
 };
 
 export default CelebrityMergeQuiz;
+
